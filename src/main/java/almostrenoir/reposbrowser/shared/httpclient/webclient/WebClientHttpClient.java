@@ -3,19 +3,15 @@ package almostrenoir.reposbrowser.shared.httpclient.webclient;
 import almostrenoir.reposbrowser.shared.httpclient.HttpClient;
 import almostrenoir.reposbrowser.shared.httpclient.HttpException;
 import almostrenoir.reposbrowser.shared.httpclient.HttpRequest;
-import almostrenoir.reposbrowser.shared.pagination.PaginatedResult;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 
 @Component
@@ -27,30 +23,31 @@ public class WebClientHttpClient implements HttpClient {
     }
 
     @Override
-    public <T> Mono<PaginatedResult<T>> getWithLinkPagination(HttpRequest httpRequest, Class<T> responseType) {
+    public <T> Flux<T> getAllWithLinkPagination(HttpRequest httpRequest, Class<T> responseType) {
         return webClient.get()
                 .uri(httpRequest.getUrl())
                 .headers(headers -> addAllHeaders(headers, httpRequest.getHeaders()))
-                .exchangeToMono(response -> handleGetWithLinkPaginationResponse(response, responseType))
+                .exchangeToFlux(clientResponse -> handlePagination(clientResponse, httpRequest, responseType))
                 .timeout(Duration.ofMillis(httpRequest.getTimeout()))
                 .onErrorMap(TimeoutException.class, ex -> new HttpException.TimeoutExceeded());
     }
 
-    private <T> Mono<PaginatedResult<T>> handleGetWithLinkPaginationResponse(
-            ClientResponse response, Class<T> responseType
-    ) {
-        if (HttpStatus.NOT_FOUND.equals(response.statusCode())) return Mono.error(new HttpException.NotFound());
-        if (response.statusCode().is5xxServerError()) return Mono.error(new HttpException.ServerError());
+    private <T> Flux<T> handlePagination(ClientResponse clientResponse, HttpRequest httpRequest, Class<T> elementType) {
+        if (HttpStatus.NOT_FOUND.equals(clientResponse.statusCode())) return Flux.error(new HttpException.NotFound());
+        if (clientResponse.statusCode().is5xxServerError()) return Flux.error(new HttpException.ServerError());
 
-        HttpHeaders headers = response.headers().asHttpHeaders();
-        Optional<List<String>> linkHeader = Optional.ofNullable(headers.get(HttpHeaders.LINK));
-        boolean nextPage = linkHeader
-                .orElse(Collections.emptyList())
-                .stream()
-                .anyMatch(link -> link.contains("rel=\"next\""));
-
-        Flux<T> responseBody = response.bodyToFlux(responseType);
-        return responseBody.collectList().flatMap(content -> Mono.just(new PaginatedResult<>(content, nextPage)));
+        return clientResponse.bodyToFlux(elementType)
+                .concatWith(clientResponse
+                        .headers()
+                        .header(HttpHeaders.LINK)
+                        .stream()
+                        .filter(link -> link.contains("rel=\"next\""))
+                        .findFirst()
+                        .map(link -> {
+                            String nextUrl = link.substring(link.indexOf('<') + 1, link.indexOf('>'));
+                            return getAllWithLinkPagination(httpRequest.withNewUrl(nextUrl), elementType);
+                        })
+                        .orElse(Flux.empty()));
     }
 
     private void addAllHeaders(HttpHeaders outputHeaders, List<HttpRequest.Header> inputHeaders) {

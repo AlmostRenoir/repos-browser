@@ -1,8 +1,7 @@
 package almostrenoir.reposbrowser.shared.httpclient;
 
-import almostrenoir.reposbrowser.shared.pagination.PaginatedResult;
-import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 
 public interface HttpClient {
-    <T> Mono<PaginatedResult<T>> getWithLinkPagination(HttpRequest httpRequest, Class<T> responseType);
+    <T> Flux<T> getAllWithLinkPagination(HttpRequest httpRequest, Class<T> responseType);
 }
