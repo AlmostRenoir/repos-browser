@@ -18,12 +18,20 @@ public class HttpRequest {
   @Builder.Default
   private final int timeout = 1000;
 
+  public HttpRequest withNewUrl(String url) {
+    return builder()
+            .url(url)
+            .headers(getHeaders())
+            .timeout(timeout)
+            .build();
+  }
+
   public List<Header> getHeaders() {
     return Collections.unmodifiableList(headers);
   }
 
   public static class HttpRequestBuilder {
-    private final List<Header> headers = new ArrayList<>();
+    private List<Header> headers = new ArrayList<>();
 
     public HttpRequestBuilder accept(ContentType contentType) {
       return header("Accept", contentType.getValue());
