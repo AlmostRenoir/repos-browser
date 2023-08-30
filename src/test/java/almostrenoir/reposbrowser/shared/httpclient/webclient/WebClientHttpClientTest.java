@@ -60,6 +60,24 @@ class WebClientHttpClientTest {
     }
 
     @Test
+    void shouldOmitRedundantFieldsWhenGetAllWithLinkPagination() {
+        String responseBody = "[{\"name\":\"Foo\", \"age\":35, \"redundantField\":\"redundantValue\"}]";
+        stubFor(get(urlEqualTo("/redundant-field"))
+                .willReturn(aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(responseBody)));
+
+        HttpRequest httpRequest = HttpRequest.builder().url(WIREMOCK_URL + "/redundant-field").build();
+        List<TestResponse> response = httpClient
+                .getAllWithLinkPagination(httpRequest, TestResponse.class)
+                .collectList().block();
+
+        assertNotNull(response);
+        assertEquals(1, response.size());
+    }
+
+    @Test
     void shouldFetchUntilNextPageExistWhenGetAllWithLinkPagination() {
         String firstPageBody = "[{\"name\":\"Foo\", \"age\":35}, {\"name\":\"Bar\", \"age\":25}]";
         stubFor(get(urlEqualTo("/paginated?page=1"))
