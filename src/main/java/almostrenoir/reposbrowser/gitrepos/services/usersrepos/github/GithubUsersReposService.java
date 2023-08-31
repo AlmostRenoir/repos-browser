@@ -63,7 +63,7 @@ public class GithubUsersReposService implements UsersReposService {
 
     private Mono<GitRepo> collectBranches(GithubRepo githubRepo) {
         HttpRequest httpRequest = HttpRequest.builder()
-                .url(githubRepo.getBranches_url())
+                .url(githubRepo.getCorrectBranchesUrl())
                 .accept(ContentType.GITHUB_JSON)
                 .header(API_VERSION_HEADER_NAME, API_VERSION_HEADER_VALUE)
                 .timeout(GET_REPOS_BRANCHES_TIMEOUT)
