@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -22,8 +23,8 @@ public class GithubUsersReposService implements UsersReposService {
     public static final String USERS_REPOS_URL = "https://api.github.com/users/%s/repos";
     public static final String API_VERSION_HEADER_NAME = "X-GitHub-Api-Version";
     public static final String API_VERSION_HEADER_VALUE = "2022-11-28";
-    public static final int GET_USERS_REPOS_TIMEOUT = 2000;
-    public static final int GET_REPOS_BRANCHES_TIMEOUT = 1000;
+    public static final int GET_USERS_REPOS_TIMEOUT = 5000;
+    public static final int GET_REPOS_BRANCHES_TIMEOUT = 3000;
 
     private final HttpClient httpClient;
 
@@ -43,7 +44,7 @@ public class GithubUsersReposService implements UsersReposService {
                 ).onErrorMap(HttpException.ServerError.class, this::onGetUsersReposServerError)
                 .onErrorMap(HttpException.TimeoutExceeded.class, this::onGetUsersReposTimeout)
                 .filter(githubRepo -> !githubRepo.isFork())
-                .map(this::collectBranches);
+                .flatMap(this::collectBranches);
     }
 
     private String getUsersReposUrl(String username) {
@@ -60,24 +61,20 @@ public class GithubUsersReposService implements UsersReposService {
         return new ExternalServiceException("Github is currently unavailable");
     }
 
-    private GitRepo collectBranches(GithubRepo githubRepo) {
+    private Mono<GitRepo> collectBranches(GithubRepo githubRepo) {
         HttpRequest httpRequest = HttpRequest.builder()
-                .url(githubRepo.getBranches_url())
+                .url(githubRepo.getCorrectBranchesUrl())
                 .accept(ContentType.GITHUB_JSON)
                 .header(API_VERSION_HEADER_NAME, API_VERSION_HEADER_VALUE)
                 .timeout(GET_REPOS_BRANCHES_TIMEOUT)
                 .build();
 
-        Flux<GitBranch> branches = httpClient.getAllWithLinkPagination(httpRequest, GithubBranch.class)
+        return httpClient.getAllWithLinkPagination(httpRequest, GithubBranch.class)
                 .onErrorMap(HttpException.ServerError.class, this::onGetReposBranchesServerError)
                 .onErrorMap(HttpException.TimeoutExceeded.class, this::onGetReposBranchesTimeout)
-                .map(githubBranch -> new GitBranch(githubBranch.getName(), githubBranch.getCommit().getSha()));
-
-        return new GitRepo(
-                githubRepo.getName(),
-                githubRepo.getOwner().getLogin(),
-                branches
-        );
+                .map(githubBranch -> new GitBranch(githubBranch.getName(), githubBranch.getCommit().getSha()))
+                .collectList()
+                .map(branches -> new GitRepo(githubRepo.getName(), githubRepo.getOwner().getLogin(), branches));
     }
 
     private ExternalServiceException onGetReposBranchesServerError(Throwable throwable) {

@@ -8,4 +8,8 @@ public class GithubRepo {
     private final GithubRepoOwner owner;
     private final boolean fork;
     private final String branches_url;
+
+    public String getCorrectBranchesUrl() {
+        return branches_url.replace("{/branch}", "");
+    }
 }

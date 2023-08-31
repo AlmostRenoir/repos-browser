@@ -38,12 +38,12 @@ class GithubUsersReposServiceTest {
         when(httpClient.getAllWithLinkPagination(eq(reposRequest), eq(GithubRepo.class)))
                 .thenReturn(Flux.fromIterable(githubRepos));
 
-        HttpRequest calculatorBranchesRequest = buildGetReposBranchesRequest(githubRepos.get(0).getBranches_url());
+        HttpRequest calculatorBranchesRequest = buildGetReposBranchesRequest(githubRepos.get(0).getCorrectBranchesUrl());
         GithubBranch calculatorMasterBranch = new GithubBranch("master", new GithubCommit("123456"));
         when(httpClient.getAllWithLinkPagination(eq(calculatorBranchesRequest), eq(GithubBranch.class)))
                 .thenReturn(Flux.just(calculatorMasterBranch));
 
-        HttpRequest graphDrawerBranchesRequest = buildGetReposBranchesRequest(githubRepos.get(1).getBranches_url());
+        HttpRequest graphDrawerBranchesRequest = buildGetReposBranchesRequest(githubRepos.get(1).getCorrectBranchesUrl());
         List<GithubBranch> graphDrawerBranches = createGraphDrawerBranches();
         when(httpClient.getAllWithLinkPagination(eq(graphDrawerBranchesRequest), eq(GithubBranch.class)))
                 .thenReturn(Flux.fromIterable(graphDrawerBranches));
@@ -53,7 +53,7 @@ class GithubUsersReposServiceTest {
         assertNotNull(result);
         assertEquals(githubRepos.size(), result.size());
         assertEquals(githubRepos.get(0).getName(), result.get(0).getName());
-        List<GitBranch> graphDrawerResultBranches = result.get(1).getBranches().collectList().block();
+        List<GitBranch> graphDrawerResultBranches = result.get(1).getBranches();
         assertNotNull(graphDrawerResultBranches);
         assertEquals(graphDrawerBranches.size(), graphDrawerResultBranches.size());
         assertEquals(
@@ -69,7 +69,7 @@ class GithubUsersReposServiceTest {
                 "graph-drawer",
                 githubRepoOwner,
                 false,
-                "https://api.github.com/repos/foobar/graph-drawer/branches"
+                "https://api.github.com/repos/foobar/graph-drawer/branches{/branch}"
         );
         return List.of(calculatorRepo, graphDrawerRepo);
     }
@@ -128,15 +128,12 @@ class GithubUsersReposServiceTest {
         when(httpClient.getAllWithLinkPagination(eq(reposRequest), eq(GithubRepo.class)))
                 .thenReturn(Flux.just(githubRepo));
 
-        HttpRequest calculatorBranchesRequest = buildGetReposBranchesRequest(githubRepo.getBranches_url());
+        HttpRequest calculatorBranchesRequest = buildGetReposBranchesRequest(githubRepo.getCorrectBranchesUrl());
         when(httpClient.getAllWithLinkPagination(eq(calculatorBranchesRequest), any()))
                 .thenReturn(Flux.error(new HttpException.ServerError()));
 
-        List<GitRepo> result = usersReposService.getAllWithoutForks("foobar").collectList().block();
-
-        assertNotNull(result);
         ExternalServiceException exception = assertThrows(ExternalServiceException.class,
-                () -> result.get(0).getBranches().collectList().block());
+                () -> usersReposService.getAllWithoutForks("foobar").collectList().block());
         assertEquals("Github is currently unavailable", exception.getMessage());
     }
 
@@ -157,14 +154,12 @@ class GithubUsersReposServiceTest {
         when(httpClient.getAllWithLinkPagination(eq(reposRequest), eq(GithubRepo.class)))
                 .thenReturn(Flux.just(githubRepo));
 
-        HttpRequest calculatorBranchesRequest = buildGetReposBranchesRequest(githubRepo.getBranches_url());
+        HttpRequest calculatorBranchesRequest = buildGetReposBranchesRequest(githubRepo.getCorrectBranchesUrl());
         when(httpClient.getAllWithLinkPagination(eq(calculatorBranchesRequest), any()))
                 .thenReturn(Flux.error(new HttpException.TimeoutExceeded()));
 
-        List<GitRepo> result = usersReposService.getAllWithoutForks("foobar").collectList().block();
-        assertNotNull(result);
         ExternalServiceException exception = assertThrows(ExternalServiceException.class,
-                () -> result.get(0).getBranches().collectList().block());
+                () -> usersReposService.getAllWithoutForks("foobar").collectList().block());
         assertEquals("Github is currently unavailable", exception.getMessage());
     }
 
@@ -193,7 +188,7 @@ class GithubUsersReposServiceTest {
                 "calculator",
                 githubRepoOwner,
                 false,
-                "https://api.github.com/repos/foobar/calculator/branches"
+                "https://api.github.com/repos/foobar/calculator/branches{/branch}"
         );
     }
 
