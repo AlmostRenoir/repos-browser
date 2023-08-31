@@ -53,7 +53,7 @@ class GithubUsersReposServiceTest {
         assertNotNull(result);
         assertEquals(githubRepos.size(), result.size());
         assertEquals(githubRepos.get(0).getName(), result.get(0).getName());
-        List<GitBranch> graphDrawerResultBranches = result.get(1).getBranches().collectList().block();
+        List<GitBranch> graphDrawerResultBranches = result.get(1).getBranches();
         assertNotNull(graphDrawerResultBranches);
         assertEquals(graphDrawerBranches.size(), graphDrawerResultBranches.size());
         assertEquals(
@@ -132,11 +132,8 @@ class GithubUsersReposServiceTest {
         when(httpClient.getAllWithLinkPagination(eq(calculatorBranchesRequest), any()))
                 .thenReturn(Flux.error(new HttpException.ServerError()));
 
-        List<GitRepo> result = usersReposService.getAllWithoutForks("foobar").collectList().block();
-
-        assertNotNull(result);
         ExternalServiceException exception = assertThrows(ExternalServiceException.class,
-                () -> result.get(0).getBranches().collectList().block());
+                () -> usersReposService.getAllWithoutForks("foobar").collectList().block());
         assertEquals("Github is currently unavailable", exception.getMessage());
     }
 
@@ -161,10 +158,8 @@ class GithubUsersReposServiceTest {
         when(httpClient.getAllWithLinkPagination(eq(calculatorBranchesRequest), any()))
                 .thenReturn(Flux.error(new HttpException.TimeoutExceeded()));
 
-        List<GitRepo> result = usersReposService.getAllWithoutForks("foobar").collectList().block();
-        assertNotNull(result);
         ExternalServiceException exception = assertThrows(ExternalServiceException.class,
-                () -> result.get(0).getBranches().collectList().block());
+                () -> usersReposService.getAllWithoutForks("foobar").collectList().block());
         assertEquals("Github is currently unavailable", exception.getMessage());
     }
 
